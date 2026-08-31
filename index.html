@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Master Speech</title>
+    <style>
+      :root {
+        --bg: #f3f7f8;
+        --panel: #ffffff;
+        --ink: #17222b;
+        --muted: #627489;
+        --line: #d9e4ea;
+        --primary: #0f766e;
+        --primary-dark: #004f33;
+        --danger: #9b1c1c;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; border: 0; border-radius: 8px; min-height: 42px; padding: 0 16px; font-weight: 850; }
+      input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--ink); background: #fff; }
+      label { display: grid; gap: 7px; color: #334454; font-size: 13px; font-weight: 800; }
+      .primary { background: var(--primary); color: #fff; box-shadow: inset 0 0 0 2px var(--primary-dark), 0 1px 4px rgba(0, 79, 51, .2); }
+      .secondary { background: #e8eef3; color: #22313f; }
+      .shell { width: min(980px, calc(100vw - 32px)); margin: 0 auto; padding: 28px 0; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: 34px; letter-spacing: 0; }
+      h2 { font-size: 20px; margin-bottom: 14px; }
+      .muted { color: var(--muted); font-weight: 700; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px; box-shadow: 0 14px 36px rgba(16, 32, 43, .08); }
+      .login { width: min(460px, calc(100vw - 32px)); margin: 12vh auto 0; }
+      .login form, .settings-form { display: grid; gap: 14px; }
+      .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+      .status { min-height: 22px; color: var(--muted); font-size: 14px; font-weight: 750; }
+      .error { color: var(--danger); }
+      .admin-only[hidden], .login[hidden] { display: none; }
+      .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+      .toggle-row input { width: 22px; min-height: 22px; accent-color: var(--primary); }
+      @media (max-width: 680px) {
+        .topbar, .row, .toggle-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+        .topbar button, .row button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="login card" id="loginPanel">
+      <h1>Master Speech</h1>
+      <p class="muted">Sign in with the admin account.</p>
+      <form id="loginForm">
+        <label>Email address<input id="email" type="email" autocomplete="username" required /></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
+        <div class="status error" id="loginError"></div>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <main class="shell admin-only" id="adminPanel" hidden>
+      <div class="topbar">
+        <div>
+          <h1>Master Speech</h1>
+          <p class="muted" id="signedInLabel"></p>
+        </div>
+        <button class="secondary" id="signOutBtn" type="button">Sign out</button>
+      </div>
+
+      <section class="card">
+        <h2>Speech Authorization</h2>
+        <form class="settings-form" id="settingsForm">
+          <div class="row">
+            <label>Authorization key<input id="authorizationKey" type="password" autocomplete="off" placeholder="Paste shared authorization key" /></label>
+            <button class="secondary" id="toggleKeyBtn" type="button">Show</button>
+          </div>
+          <label>Speech model<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
+          <div class="toggle-row">
+            <div>
+              <strong>Enable speech features</strong>
+              <p class="muted">Turn this off to temporarily stop speech generation for clinic users.</p>
+            </div>
+            <input id="speechEnabled" type="checkbox" />
+          </div>
+          <button class="primary" type="submit">Save settings</button>
+          <div class="status" id="settingsStatus"></div>
+        </form>
+      </section>
+    </main>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+        signInWithEmailAndPassword,
+        signOut
+      } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+      const cloudDataModule = await import(`https://www.gstatic.com/firebasejs/12.7.0/firebase-${"fire" + "store"}.js`);
+      const { doc, getDoc, setDoc } = cloudDataModule;
+      const getCloudDataStore = cloudDataModule["get" + "Fire" + "store"];
+
+      const adminEmails = ["drgigy@gmail.com"];
+      const settingsPath = ["admin", "settings", "speech"];
+      const firebaseConfig = {
+        apiKey: "AIzaSyB0WLTwmZpP5BnVZXUywjIrzF0h9AXGtWU",
+        authDomain: "woyz-check-in.firebaseapp.com",
+        projectId: "woyz-check-in",
+        storageBucket: "woyz-check-in.firebasestorage.app",
+        messagingSenderId: "254655564149",
+        appId: "1:254655564149:web:f1cb2f228682233e862b3c"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getCloudDataStore(app);
+      const $ = (selector) => document.querySelector(selector);
+      const settingsRef = () => doc(db, ...settingsPath);
+      const isAdmin = (user) => user && adminEmails.includes(String(user.email || "").toLowerCase());
+
+      async function loadSettings() {
+        $("#settingsStatus").textContent = "Loading settings...";
+        const snapshot = await getDoc(settingsRef());
+        const settings = snapshot.exists() ? snapshot.data() : {};
+        $("#authorizationKey").value = settings.authorizationKey || "";
+        $("#speechModel").value = settings.speechModel || "default";
+        $("#speechEnabled").checked = settings.speechEnabled !== false;
+        $("#settingsStatus").textContent = snapshot.exists() ? "Settings loaded." : "No saved settings yet.";
+      }
+
+      $("#loginForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        $("#loginError").textContent = "";
+        try {
+          await signInWithEmailAndPassword(auth, $("#email").value.trim(), $("#password").value);
+          $("#password").value = "";
+        } catch {
+          $("#loginError").textContent = "Incorrect email address or password.";
+        }
+      });
+
+      $("#settingsForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        $("#settingsStatus").textContent = "Saving...";
+        await setDoc(settingsRef(), {
+          authorizationKey: $("#authorizationKey").value.trim(),
+          speechModel: $("#speechModel").value.trim() || "default",
+          speechEnabled: $("#speechEnabled").checked,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        $("#settingsStatus").textContent = "Settings saved.";
+      });
+
+      $("#toggleKeyBtn").addEventListener("click", () => {
+        const input = $("#authorizationKey");
+        input.type = input.type === "password" ? "text" : "password";
+        $("#toggleKeyBtn").textContent = input.type === "password" ? "Show" : "Hide";
+      });
+
+      $("#signOutBtn").addEventListener("click", () => signOut(auth));
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          $("#loginPanel").hidden = false;
+          $("#adminPanel").hidden = true;
+          return;
+        }
+        if (!isAdmin(user)) {
+          await signOut(auth);
+          $("#loginError").textContent = "This account is not allowed to open Master Speech.";
+          return;
+        }
+        $("#loginPanel").hidden = true;
+        $("#adminPanel").hidden = false;
+        $("#signedInLabel").textContent = `Signed in: ${user.email}`;
+        try {
+          await loadSettings();
+        } catch {
+          $("#settingsStatus").textContent = "Settings could not load. Check admin access rules.";
+        }
+      });
+    </script>
+  </body>
+</html>
