@@ -1,6 +1,6 @@
-# Master Speech
+# Admin Console
 
-Separate admin page for controlling shared speech settings.
+Separate admin page for controlling shared clinic note settings.
 
 ## Admin Login
 
@@ -12,7 +12,7 @@ drgigy@gmail.com
 
 ## Saved Settings
 
-The page saves speech settings to:
+The page saves admin settings to:
 
 ```text
 admin/settings/speech
@@ -33,6 +33,6 @@ Then create and push the repo:
 ```sh
 git init
 git add .
-git commit -m "Create Master Speech admin page"
+git commit -m "Create Admin Console page"
 gh repo create master-speech --public --source=. --remote=origin --push
 ```

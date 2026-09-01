@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Master Speech</title>
+    <title>Admin Console</title>
     <style>
       :root {
         --bg: #f3f7f8;
@@ -47,7 +47,7 @@
   </head>
   <body>
     <section class="login card" id="loginPanel">
-      <h1>Master Speech</h1>
+      <h1>Admin Console</h1>
       <p class="muted">Sign in with the admin account.</p>
       <form id="loginForm">
         <label>Email address<input id="email" type="email" autocomplete="username" required /></label>
@@ -60,24 +60,24 @@
     <main class="shell admin-only" id="adminPanel" hidden>
       <div class="topbar">
         <div>
-          <h1>Master Speech</h1>
+          <h1>Admin Console</h1>
           <p class="muted" id="signedInLabel"></p>
         </div>
         <button class="secondary" id="signOutBtn" type="button">Sign out</button>
       </div>
 
       <section class="card">
-        <h2>Speech Authorization</h2>
+        <h2>Authorization</h2>
         <form class="settings-form" id="settingsForm">
           <div class="row">
             <label>Authorization key<input id="authorizationKey" type="password" autocomplete="off" placeholder="Paste shared authorization key" /></label>
             <button class="secondary" id="toggleKeyBtn" type="button">Show</button>
           </div>
-          <label>Speech model<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
+          <label>Model name<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
           <div class="toggle-row">
             <div>
-              <strong>Enable speech features</strong>
-              <p class="muted">Turn this off to temporarily stop speech generation for clinic users.</p>
+              <strong>Enable note features</strong>
+              <p class="muted">Turn this off to temporarily stop note generation for clinic users.</p>
             </div>
             <input id="speechEnabled" type="checkbox" />
           </div>
@@ -167,7 +167,7 @@
         }
         if (!isAdmin(user)) {
           await signOut(auth);
-          $("#loginError").textContent = "This account is not allowed to open Master Speech.";
+          $("#loginError").textContent = "This account is not allowed to open Admin Console.";
           return;
         }
         $("#loginPanel").hidden = true;
