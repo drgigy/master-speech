@@ -287,7 +287,7 @@
             <div class="device-row">
               <div>
                 <div class="device-name">${escapeHtml(device.label || "Unknown device")}</div>
-                <div class="device-meta">${escapeHtml(device.id)} · Last seen ${escapeHtml(formatDateTime(device.lastSeenAt || device.createdAt))}</div>
+                <div class="device-meta">Last seen ${escapeHtml(formatDateTime(device.lastSeenAt || device.createdAt))}</div>
               </div>
               <span class="device-status ${escapeHtml(device.status || "pending")}">${escapeHtml(device.status || "pending")}</span>
               <div class="device-actions">
@@ -300,9 +300,8 @@
             <article class="user-card">
               <div class="user-head">
                 <div>
-                  <div class="user-email">${escapeHtml(user.email || "No email saved")}</div>
-                  <div class="user-uid">${escapeHtml(user.name || "Name not set")}</div>
-                  <div class="user-uid">${escapeHtml(uid)}</div>
+                  <div class="user-email">${escapeHtml(user.name || user.email || "Name not set")}</div>
+                  <div class="user-uid">${escapeHtml(user.name ? user.email || "No email saved" : "Add doctor name below")}</div>
                 </div>
                 <button class="secondary" type="button" data-save-user="${uid}">Save</button>
               </div>
