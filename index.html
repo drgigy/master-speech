@@ -50,6 +50,7 @@
       .stack { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 18px; align-items: start; }
       .authorization-card { position: sticky; top: 18px; }
       .user-search { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
+      .user-maintenance { display: flex; justify-content: flex-end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
       .user-tools { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
       .user-list { display: grid; gap: 10px; }
       .user-card { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
@@ -82,7 +83,7 @@
         .shell { width: min(100vw - 24px, 1180px); padding: 20px 0; }
         .topbar, .row, .toggle-row, .user-tools, .device-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
         .features { grid-template-columns: 1fr; }
-        .topbar button, .row button, .user-tools button { width: 100%; }
+        .topbar button, .row button, .user-tools button, .user-maintenance button { width: 100%; }
       }
     </style>
   </head>
@@ -130,6 +131,9 @@
           <div class="user-search">
             <label>Search users<input id="userSearch" type="search" autocomplete="off" placeholder="Name, email, UID, group, or device" /></label>
           </div>
+          <div class="user-maintenance">
+            <button class="secondary" id="rebuildSharedPatientIndexBtn" type="button">Rebuild shared patient search</button>
+          </div>
           <form class="user-tools" id="manualUserForm">
             <label>User UID<input id="manualUid" autocomplete="off" placeholder="Firebase user UID" /></label>
             <label>Name<input id="manualName" autocomplete="off" placeholder="Doctor name" /></label>
@@ -151,7 +155,7 @@
         signOut
       } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
       const cloudDataModule = await import(`https://www.gstatic.com/firebasejs/12.7.0/firebase-${"fire" + "store"}.js`);
-      const { collection, collectionGroup, doc, getDoc, onSnapshot, setDoc } = cloudDataModule;
+      const { collection, collectionGroup, doc, getDoc, getDocs, onSnapshot, setDoc } = cloudDataModule;
       const getCloudDataStore = cloudDataModule["get" + "Fire" + "store"];
 
       const adminEmails = ["drgigy@gmail.com"];
@@ -388,6 +392,75 @@
         $("#userStatus").textContent = `Device ${status}.`;
       }
 
+      function mappedGroupsByUser() {
+        return new Map(Object.entries(userFeatures)
+          .map(([uid, features]) => [uid, String(features.sharedPatientGroup || "").trim()])
+          .filter(([, group]) => group));
+      }
+
+      function patientKeyFrom(data, fallback = "") {
+        return String(data.patientId || data.patientKey || fallback || "").trim().replace(/\//g, "_");
+      }
+
+      function patientIdentityFrom(data, fallback = "") {
+        const mobile = String(data.mobile || "").replace(/\D/g, "");
+        const patientKey = patientKeyFrom(data, fallback);
+        return mobile ? `mobile_${mobile}` : patientKey ? `uhid_${patientKey}` : "";
+      }
+
+      async function rebuildSharedPatientIndex() {
+        const groupsByUser = mappedGroupsByUser();
+        if (!groupsByUser.size) {
+          $("#userStatus").textContent = "No mapped users found.";
+          return;
+        }
+        $("#userStatus").textContent = "Rebuilding shared patient search...";
+        let profileCount = 0;
+        let recordCount = 0;
+        const patientSnapshot = await getDocs(collectionGroup(db, "patients"));
+        for (const item of patientSnapshot.docs) {
+          const ownerUid = item.ref.parent.parent?.id || "";
+          const group = groupsByUser.get(ownerUid);
+          if (!group) continue;
+          const patient = item.data();
+          const patientKey = patientKeyFrom(patient, item.id);
+          const patientIdentity = patientIdentityFrom(patient, item.id);
+          if (!patientIdentity) continue;
+          await setDoc(doc(db, "patientGroups", group, "patients", patientIdentity), {
+            patientIdentity,
+            patientId: patientKey,
+            name: patient.name || "",
+            age: patient.age || "",
+            sex: patient.sex || "",
+            mobile: patient.mobile || "",
+            diagnosis: patient.diagnosis || "",
+            customDiagnosis: patient.customDiagnosis || "",
+            comments: Array.isArray(patient.comments) ? patient.comments : [],
+            lastVisitDate: patient.date || "",
+            updatedAt: new Date().toISOString(),
+            updatedByUid: ownerUid,
+            indexedBy: auth.currentUser?.email || ""
+          }, { merge: true });
+          profileCount += 1;
+        }
+        const recordSnapshot = await getDocs(collectionGroup(db, "medicalRecords"));
+        for (const item of recordSnapshot.docs) {
+          const ownerUid = item.ref.parent.parent?.id || "";
+          const group = groupsByUser.get(ownerUid);
+          if (!group) continue;
+          const record = item.data();
+          await setDoc(doc(db, "patientGroups", group, "medicalRecords", item.id), {
+            ...record,
+            ownerUid,
+            sharedPatientGroup: group,
+            indexedAt: new Date().toISOString(),
+            indexedBy: auth.currentUser?.email || ""
+          }, { merge: true });
+          recordCount += 1;
+        }
+        $("#userStatus").textContent = `Shared search rebuilt: ${profileCount} patients, ${recordCount} records.`;
+      }
+
       $("#loginForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         $("#loginError").textContent = "";
@@ -450,6 +523,18 @@
       $("#userSearch").addEventListener("input", (event) => {
         userSearchQuery = event.target.value;
         renderUsers();
+      });
+
+      $("#rebuildSharedPatientIndexBtn").addEventListener("click", async () => {
+        try {
+          $("#rebuildSharedPatientIndexBtn").disabled = true;
+          await rebuildSharedPatientIndex();
+        } catch (error) {
+          console.error("Shared patient search rebuild failed", error);
+          $("#userStatus").textContent = "Shared search rebuild failed. Check rules and admin access.";
+        } finally {
+          $("#rebuildSharedPatientIndexBtn").disabled = false;
+        }
       });
 
       $("#toggleKeyBtn").addEventListener("click", () => {
