@@ -39,9 +39,20 @@
       .admin-only[hidden], .login[hidden] { display: none; }
       .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
       .toggle-row input { width: 22px; min-height: 22px; accent-color: var(--primary); }
+      .stack { display: grid; gap: 18px; }
+      .user-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+      .user-list { display: grid; gap: 12px; }
+      .user-card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: #fbfdfe; }
+      .user-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+      .user-email { font-size: 16px; font-weight: 900; overflow-wrap: anywhere; }
+      .user-uid { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
+      .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+      .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; border-top: 1px solid #edf3f6; color: #334454; font-size: 13px; font-weight: 850; }
+      .feature-check input { width: 20px; min-height: 20px; accent-color: var(--primary); }
       @media (max-width: 680px) {
-        .topbar, .row, .toggle-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
-        .topbar button, .row button { width: 100%; }
+        .topbar, .row, .toggle-row, .user-tools { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+        .features { grid-template-columns: 1fr; }
+        .topbar button, .row button, .user-tools button { width: 100%; }
       }
     </style>
   </head>
@@ -66,25 +77,38 @@
         <button class="secondary" id="signOutBtn" type="button">Sign out</button>
       </div>
 
-      <section class="card">
-        <h2>Authorization</h2>
-        <form class="settings-form" id="settingsForm">
-          <div class="row">
-            <label>Authorization key<input id="authorizationKey" type="password" autocomplete="off" placeholder="Paste shared authorization key" /></label>
-            <button class="secondary" id="toggleKeyBtn" type="button">Show</button>
-          </div>
-          <label>Model name<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
-          <div class="toggle-row">
-            <div>
-              <strong>Enable note features</strong>
-              <p class="muted">Turn this off to temporarily stop note generation for clinic users.</p>
+      <div class="stack">
+        <section class="card">
+          <h2>Authorization</h2>
+          <form class="settings-form" id="settingsForm">
+            <div class="row">
+              <label>Authorization key<input id="authorizationKey" type="password" autocomplete="off" placeholder="Paste shared authorization key" /></label>
+              <button class="secondary" id="toggleKeyBtn" type="button">Show</button>
             </div>
-            <input id="speechEnabled" type="checkbox" />
-          </div>
-          <button class="primary" type="submit">Save settings</button>
-          <div class="status" id="settingsStatus"></div>
-        </form>
-      </section>
+            <label>Model name<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
+            <div class="toggle-row">
+              <div>
+                <strong>Enable note features</strong>
+                <p class="muted">Turn this off to temporarily stop note generation for clinic users.</p>
+              </div>
+              <input id="speechEnabled" type="checkbox" />
+            </div>
+            <button class="primary" type="submit">Save settings</button>
+            <div class="status" id="settingsStatus"></div>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>User Features</h2>
+          <form class="user-tools" id="manualUserForm">
+            <label>User UID<input id="manualUid" autocomplete="off" placeholder="Firebase user UID" /></label>
+            <label>Email address<input id="manualEmail" type="email" autocomplete="off" placeholder="doctor@example.com" /></label>
+            <button class="primary" type="submit">Add user</button>
+          </form>
+          <div class="user-list" id="userList"></div>
+          <div class="status" id="userStatus"></div>
+        </section>
+      </div>
     </main>
 
     <script type="module">
@@ -96,11 +120,33 @@
         signOut
       } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
       const cloudDataModule = await import(`https://www.gstatic.com/firebasejs/12.7.0/firebase-${"fire" + "store"}.js`);
-      const { doc, getDoc, setDoc } = cloudDataModule;
+      const { collection, doc, getDoc, onSnapshot, setDoc } = cloudDataModule;
       const getCloudDataStore = cloudDataModule["get" + "Fire" + "store"];
 
       const adminEmails = ["drgigy@gmail.com"];
       const settingsPath = ["admin", "settings", "speech"];
+      const featureLabels = {
+        staff: "Staff",
+        finance: "Finance",
+        followup: "Follow-up",
+        whatsapp: "WhatsApp",
+        accounts: "Accounts",
+        voice: "Voice notes",
+        printPrescription: "Print prescription",
+        printReply: "Print reply",
+        printCertificate: "Print certificate"
+      };
+      const defaultFeatures = {
+        staff: true,
+        finance: true,
+        followup: true,
+        whatsapp: true,
+        accounts: true,
+        voice: true,
+        printPrescription: true,
+        printReply: true,
+        printCertificate: true
+      };
       const firebaseConfig = {
         apiKey: "AIzaSyB0WLTwmZpP5BnVZXUywjIrzF0h9AXGtWU",
         authDomain: "woyz-check-in.firebaseapp.com",
@@ -115,7 +161,13 @@
       const db = getCloudDataStore(app);
       const $ = (selector) => document.querySelector(selector);
       const settingsRef = () => doc(db, ...settingsPath);
+      const userDirectoryRef = () => collection(db, "admin", "userDirectory");
+      const userFeatureRef = (uid) => doc(db, "admin", "userFeatures", uid);
       const isAdmin = (user) => user && adminEmails.includes(String(user.email || "").toLowerCase());
+      let users = [];
+      let userFeatures = {};
+      let unsubscribeUsers = null;
+      let unsubscribeFeatureDocs = [];
 
       async function loadSettings() {
         $("#settingsStatus").textContent = "Loading settings...";
@@ -125,6 +177,80 @@
         $("#speechModel").value = settings.speechModel || "default";
         $("#speechEnabled").checked = settings.speechEnabled !== false;
         $("#settingsStatus").textContent = snapshot.exists() ? "Settings loaded." : "No saved settings yet.";
+      }
+
+      function renderUsers() {
+        const userList = $("#userList");
+        if (!users.length) {
+          userList.innerHTML = `<p class="muted">No clinic users found yet. Users appear here after they sign in, or you can add a UID manually.</p>`;
+          return;
+        }
+        userList.innerHTML = users.map((user) => {
+          const uid = user.uid || user.id;
+          const features = { ...defaultFeatures, ...(userFeatures[uid] || {}) };
+          const checks = Object.entries(featureLabels).map(([key, label]) => `
+            <label class="feature-check">${label}<input type="checkbox" data-feature-user="${uid}" data-feature-key="${key}" ${features[key] !== false ? "checked" : ""} /></label>
+          `).join("");
+          return `
+            <article class="user-card">
+              <div class="user-head">
+                <div>
+                  <div class="user-email">${escapeHtml(user.email || "No email saved")}</div>
+                  <div class="user-uid">${escapeHtml(uid)}</div>
+                </div>
+                <button class="secondary" type="button" data-save-user="${uid}">Save</button>
+              </div>
+              <div class="features">${checks}</div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function escapeHtml(value) {
+        return String(value || "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[char]));
+      }
+
+      function startUserWatch() {
+        if (unsubscribeUsers) unsubscribeUsers();
+        unsubscribeFeatureDocs.forEach((unsubscribe) => unsubscribe());
+        unsubscribeFeatureDocs = [];
+        $("#userStatus").textContent = "Loading users...";
+        unsubscribeUsers = onSnapshot(userDirectoryRef(), (snapshot) => {
+          unsubscribeFeatureDocs.forEach((unsubscribe) => unsubscribe());
+          unsubscribeFeatureDocs = [];
+          users = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.email || "").localeCompare(String(b.email || "")));
+          users.forEach((user) => {
+            const uid = user.uid || user.id;
+            const unsubscribe = onSnapshot(userFeatureRef(uid), (featureSnapshot) => {
+              userFeatures[uid] = featureSnapshot.exists() ? featureSnapshot.data() : {};
+              renderUsers();
+            });
+            unsubscribeFeatureDocs.push(unsubscribe);
+          });
+          renderUsers();
+          $("#userStatus").textContent = users.length ? "Users loaded." : "No users loaded.";
+        }, () => {
+          $("#userStatus").textContent = "Users could not load. Check admin access rules.";
+        });
+      }
+
+      async function saveUserFeatures(uid) {
+        const checks = [...document.querySelectorAll("[data-feature-user]")].filter((input) => input.dataset.featureUser === uid);
+        const features = {};
+        checks.forEach((input) => { features[input.dataset.featureKey] = input.checked; });
+        $("#userStatus").textContent = "Saving user features...";
+        await setDoc(userFeatureRef(uid), {
+          ...features,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        $("#userStatus").textContent = "User features saved.";
       }
 
       $("#loginForm").addEventListener("submit", async (event) => {
@@ -151,6 +277,33 @@
         $("#settingsStatus").textContent = "Settings saved.";
       });
 
+      $("#manualUserForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const uid = $("#manualUid").value.trim();
+        const email = $("#manualEmail").value.trim();
+        if (!uid || !email) {
+          $("#userStatus").textContent = "Enter both UID and email address.";
+          return;
+        }
+        $("#userStatus").textContent = "Adding user...";
+        await setDoc(doc(db, "admin", "userDirectory", uid), {
+          uid,
+          email,
+          addedAt: new Date().toISOString(),
+          addedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        await setDoc(userFeatureRef(uid), defaultFeatures, { merge: true });
+        $("#manualUid").value = "";
+        $("#manualEmail").value = "";
+        $("#userStatus").textContent = "User added.";
+      });
+
+      document.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-save-user]");
+        if (!button) return;
+        await saveUserFeatures(button.dataset.saveUser);
+      });
+
       $("#toggleKeyBtn").addEventListener("click", () => {
         const input = $("#authorizationKey");
         input.type = input.type === "password" ? "text" : "password";
@@ -175,6 +328,7 @@
         $("#signedInLabel").textContent = `Signed in: ${user.email}`;
         try {
           await loadSettings();
+          startUserWatch();
         } catch {
           $("#settingsStatus").textContent = "Settings could not load. Check admin access rules.";
         }
