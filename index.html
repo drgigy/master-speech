@@ -119,7 +119,6 @@
               <label>Authorization key<input id="authorizationKey" type="password" autocomplete="off" placeholder="Paste shared authorization key" /></label>
               <button class="secondary" id="toggleKeyBtn" type="button">Show</button>
             </div>
-            <label>Model name<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
             <div class="toggle-row">
               <strong>Enable note features</strong>
               <input id="speechEnabled" type="checkbox" />
@@ -235,7 +234,6 @@
         const snapshot = await getDoc(settingsRef());
         const settings = snapshot.exists() ? snapshot.data() : {};
         $("#authorizationKey").value = settings.authorizationKey || "";
-        $("#speechModel").value = settings.speechModel || "";
         $("#speechEnabled").checked = settings.speechEnabled !== false;
         $("#settingsStatus").textContent = snapshot.exists() ? "Settings loaded." : "No saved settings yet.";
       }
@@ -554,7 +552,7 @@
         $("#settingsStatus").textContent = "Saving...";
         await setDoc(settingsRef(), {
           authorizationKey: $("#authorizationKey").value.trim(),
-          speechModel: $("#speechModel").value.trim() === "default" ? "" : $("#speechModel").value.trim(),
+          speechModel: "",
           speechEnabled: $("#speechEnabled").checked,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.currentUser?.email || ""
