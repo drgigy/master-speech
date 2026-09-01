@@ -8,7 +8,8 @@ service cloud.firestore {
     }
 
     match /adminSettings/{settingId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() || request.auth != null;
+      allow write: if isAdmin();
     }
 
     match /adminUserDirectory/{userId} {
