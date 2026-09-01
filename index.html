@@ -200,11 +200,22 @@
 
       function renderUsers() {
         const userList = $("#userList");
-        if (!users.length) {
+        const userMap = new Map(users.map((user) => [user.uid || user.id, user]));
+        Object.entries(userDevices).forEach(([uid, devices]) => {
+          if (!userMap.has(uid)) {
+            userMap.set(uid, {
+              id: uid,
+              uid,
+              email: devices.find((device) => device.email)?.email || "No email saved"
+            });
+          }
+        });
+        const visibleUsers = [...userMap.values()].sort((a, b) => String(a.email || "").localeCompare(String(b.email || "")));
+        if (!visibleUsers.length) {
           userList.innerHTML = `<p class="muted">No clinic users found yet. Users appear here after they sign in, or you can add a UID manually.</p>`;
           return;
         }
-        userList.innerHTML = users.map((user) => {
+        userList.innerHTML = visibleUsers.map((user) => {
           const uid = user.uid || user.id;
           const features = { ...defaultFeatures, ...(userFeatures[uid] || {}) };
           const checks = Object.entries(featureLabels).map(([key, label]) => `
@@ -292,6 +303,8 @@
           });
           Object.values(userDevices).forEach((devices) => devices.sort((a, b) => String(b.lastSeenAt || b.createdAt || "").localeCompare(String(a.lastSeenAt || a.createdAt || ""))));
           renderUsers();
+        }, () => {
+          $("#userStatus").textContent = "Devices could not load. Check admin access rules.";
         });
       }
 
@@ -396,9 +409,9 @@
         $("#loginPanel").hidden = true;
         $("#adminPanel").hidden = false;
         $("#signedInLabel").textContent = `Signed in: ${user.email}`;
+        startUserWatch();
         try {
           await loadSettings();
-          startUserWatch();
         } catch {
           $("#settingsStatus").textContent = "Settings could not load. Check admin access rules.";
         }
