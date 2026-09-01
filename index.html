@@ -209,7 +209,7 @@
         const snapshot = await getDoc(settingsRef());
         const settings = snapshot.exists() ? snapshot.data() : {};
         $("#authorizationKey").value = settings.authorizationKey || "";
-        $("#speechModel").value = settings.speechModel || "default";
+        $("#speechModel").value = settings.speechModel || "";
         $("#speechEnabled").checked = settings.speechEnabled !== false;
         $("#settingsStatus").textContent = snapshot.exists() ? "Settings loaded." : "No saved settings yet.";
       }
@@ -363,7 +363,7 @@
         $("#settingsStatus").textContent = "Saving...";
         await setDoc(settingsRef(), {
           authorizationKey: $("#authorizationKey").value.trim(),
-          speechModel: $("#speechModel").value.trim() || "default",
+          speechModel: $("#speechModel").value.trim() === "default" ? "" : $("#speechModel").value.trim(),
           speechEnabled: $("#speechEnabled").checked,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.currentUser?.email || ""
