@@ -56,7 +56,7 @@
       .user-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; margin-bottom: 12px; }
       .user-email { font-size: 16px; font-weight: 900; overflow-wrap: anywhere; }
       .user-uid { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
-      .user-edit-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr); gap: 10px; margin-bottom: 12px; }
+      .user-edit-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr) minmax(220px, 1fr); gap: 10px; margin-bottom: 12px; }
       .features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
       .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; color: #334454; font-size: 12px; font-weight: 850; background: #fbfdfe; }
       .device-list { display: grid; gap: 8px; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
@@ -266,6 +266,7 @@
               <div class="user-edit-grid">
                 <label>Name<input data-user-name="${uid}" value="${escapeHtml(user.name || "")}" placeholder="Doctor name" /></label>
                 <label>Email address<input data-user-email="${uid}" type="email" value="${escapeHtml(user.email || "")}" placeholder="doctor@example.com" /></label>
+                <label>Shared patient group<input data-user-shared-group="${uid}" value="${escapeHtml(features.sharedPatientGroup || "")}" placeholder="Example: neuroclinic-main" /></label>
               </div>
               <div class="features">${checks}</div>
               <div class="device-list">
@@ -334,6 +335,7 @@
 
       async function saveUserFeatures(uid) {
         const checks = [...document.querySelectorAll("[data-feature-user]")].filter((input) => input.dataset.featureUser === uid);
+        const sharedPatientGroup = [...document.querySelectorAll("[data-user-shared-group]")].find((input) => input.dataset.userSharedGroup === uid)?.value.trim() || "";
         const features = {};
         checks.forEach((input) => { features[input.dataset.featureKey] = input.checked; });
         $("#userStatus").textContent = "Saving user features...";
@@ -346,6 +348,7 @@
         }, { merge: true });
         await setDoc(userFeatureRef(uid), {
           ...features,
+          sharedPatientGroup,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.currentUser?.email || ""
         }, { merge: true });
