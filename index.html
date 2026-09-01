@@ -49,13 +49,14 @@
       .toggle-row input:checked::after, .feature-check input:checked::after { transform: translateX(18px); }
       .stack { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 18px; align-items: start; }
       .authorization-card { position: sticky; top: 18px; }
-      .user-tools { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
+      .user-tools { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
       .user-list { display: grid; gap: 10px; }
       .user-card { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
       .user-card:first-child { border-top: 0; padding-top: 0; }
       .user-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; margin-bottom: 12px; }
       .user-email { font-size: 16px; font-weight: 900; overflow-wrap: anywhere; }
       .user-uid { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
+      .user-edit-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr); gap: 10px; margin-bottom: 12px; }
       .features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
       .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; color: #334454; font-size: 12px; font-weight: 850; background: #fbfdfe; }
       .device-list { display: grid; gap: 8px; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
@@ -74,6 +75,7 @@
         .stack { grid-template-columns: 1fr; }
         .authorization-card { position: static; }
         .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .user-edit-grid { grid-template-columns: 1fr; }
       }
       @media (max-width: 680px) {
         .shell { width: min(100vw - 24px, 1180px); padding: 20px 0; }
@@ -126,6 +128,7 @@
           <h2>User Features</h2>
           <form class="user-tools" id="manualUserForm">
             <label>User UID<input id="manualUid" autocomplete="off" placeholder="Firebase user UID" /></label>
+            <label>Name<input id="manualName" autocomplete="off" placeholder="Doctor name" /></label>
             <label>Email address<input id="manualEmail" type="email" autocomplete="off" placeholder="doctor@example.com" /></label>
             <button class="primary" type="submit">Add user</button>
           </form>
@@ -255,9 +258,14 @@
               <div class="user-head">
                 <div>
                   <div class="user-email">${escapeHtml(user.email || "No email saved")}</div>
+                  <div class="user-uid">${escapeHtml(user.name || "Name not set")}</div>
                   <div class="user-uid">${escapeHtml(uid)}</div>
                 </div>
                 <button class="secondary" type="button" data-save-user="${uid}">Save</button>
+              </div>
+              <div class="user-edit-grid">
+                <label>Name<input data-user-name="${uid}" value="${escapeHtml(user.name || "")}" placeholder="Doctor name" /></label>
+                <label>Email address<input data-user-email="${uid}" type="email" value="${escapeHtml(user.email || "")}" placeholder="doctor@example.com" /></label>
               </div>
               <div class="features">${checks}</div>
               <div class="device-list">
@@ -329,6 +337,13 @@
         const features = {};
         checks.forEach((input) => { features[input.dataset.featureKey] = input.checked; });
         $("#userStatus").textContent = "Saving user features...";
+        await setDoc(doc(db, "adminUserDirectory", uid), {
+          uid,
+          name: [...document.querySelectorAll("[data-user-name]")].find((input) => input.dataset.userName === uid)?.value.trim() || "",
+          email: [...document.querySelectorAll("[data-user-email]")].find((input) => input.dataset.userEmail === uid)?.value.trim() || "",
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
+        }, { merge: true });
         await setDoc(userFeatureRef(uid), {
           ...features,
           updatedAt: new Date().toISOString(),
@@ -374,6 +389,7 @@
       $("#manualUserForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const uid = $("#manualUid").value.trim();
+        const name = $("#manualName").value.trim();
         const email = $("#manualEmail").value.trim();
         if (!uid || !email) {
           $("#userStatus").textContent = "Enter both UID and email address.";
@@ -382,12 +398,14 @@
         $("#userStatus").textContent = "Adding user...";
         await setDoc(doc(db, "adminUserDirectory", uid), {
           uid,
+          name,
           email,
           addedAt: new Date().toISOString(),
           addedBy: auth.currentUser?.email || ""
         }, { merge: true });
         await setDoc(userFeatureRef(uid), defaultFeatures, { merge: true });
         $("#manualUid").value = "";
+        $("#manualName").value = "";
         $("#manualEmail").value = "";
         $("#userStatus").textContent = "User added.";
       });
