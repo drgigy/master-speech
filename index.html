@@ -6,60 +6,79 @@
     <title>Admin Console</title>
     <style>
       :root {
-        --bg: #f3f7f8;
+        --bg: #f5f8fa;
         --panel: #ffffff;
         --ink: #17222b;
         --muted: #627489;
         --line: #d9e4ea;
+        --line-soft: #edf3f6;
         --primary: #0f766e;
         --primary-dark: #004f33;
+        --primary-soft: #e8f5f2;
+        --warning: #9a5b00;
         --danger: #9b1c1c;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); }
+      body { margin: 0; min-height: 100vh; background: linear-gradient(180deg, #edf4f6 0, var(--bg) 220px); color: var(--ink); }
       button, input, select { font: inherit; }
-      button { cursor: pointer; border: 0; border-radius: 8px; min-height: 42px; padding: 0 16px; font-weight: 850; }
-      input, select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: var(--ink); background: #fff; }
-      label { display: grid; gap: 7px; color: #334454; font-size: 13px; font-weight: 800; }
-      .primary { background: var(--primary); color: #fff; box-shadow: inset 0 0 0 2px var(--primary-dark), 0 1px 4px rgba(0, 79, 51, .2); }
+      button { cursor: pointer; border: 0; border-radius: 8px; min-height: 38px; padding: 0 14px; font-weight: 850; }
+      input, select { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; color: var(--ink); background: #fff; outline-color: var(--primary); }
+      label { display: grid; gap: 6px; color: #334454; font-size: 12px; font-weight: 850; }
+      .primary { background: var(--primary); color: #fff; box-shadow: inset 0 0 0 2px var(--primary-dark), 0 1px 3px rgba(0, 79, 51, .18); }
       .secondary { background: #e8eef3; color: #22313f; }
-      .shell { width: min(980px, calc(100vw - 32px)); margin: 0 auto; padding: 28px 0; }
+      .shell { width: min(1180px, calc(100vw - 40px)); margin: 0 auto; padding: 34px 0; }
       .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
       h1, h2, p { margin: 0; }
-      h1 { font-size: 34px; letter-spacing: 0; }
-      h2 { font-size: 20px; margin-bottom: 14px; }
+      h1 { font-size: 34px; line-height: 1.05; letter-spacing: 0; }
+      h2 { font-size: 18px; margin-bottom: 16px; }
       .muted { color: var(--muted); font-weight: 700; }
-      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px; box-shadow: 0 14px 36px rgba(16, 32, 43, .08); }
-      .login { width: min(460px, calc(100vw - 32px)); margin: 12vh auto 0; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 22px; box-shadow: 0 10px 28px rgba(16, 32, 43, .06); }
+      .login { width: min(440px, calc(100vw - 32px)); margin: 13vh auto 0; padding: 28px; }
+      .login h1 { font-size: 30px; }
+      .login p { margin: 4px 0 18px; }
       .login form, .settings-form { display: grid; gap: 14px; }
       .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
       .status { min-height: 22px; color: var(--muted); font-size: 14px; font-weight: 750; }
       .error { color: var(--danger); }
       .admin-only[hidden], .login[hidden] { display: none; }
-      .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
-      .toggle-row input { width: 22px; min-height: 22px; accent-color: var(--primary); }
-      .stack { display: grid; gap: 18px; }
-      .user-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 16px; }
-      .user-list { display: grid; gap: 12px; }
-      .user-card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: #fbfdfe; }
-      .user-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+      .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+      .toggle-row input, .feature-check input { appearance: none; width: 42px; min-height: 24px; border: 0; border-radius: 999px; background: #dbe5eb; padding: 0; position: relative; }
+      .toggle-row input::after, .feature-check input::after { content: ""; position: absolute; width: 18px; height: 18px; top: 3px; left: 3px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(16, 32, 43, .22); transition: transform .16s ease; }
+      .toggle-row input:checked, .feature-check input:checked { background: var(--primary); }
+      .toggle-row input:checked::after, .feature-check input:checked::after { transform: translateX(18px); }
+      .stack { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 18px; align-items: start; }
+      .authorization-card { position: sticky; top: 18px; }
+      .user-tools { display: grid; grid-template-columns: minmax(220px, .9fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
+      .user-list { display: grid; gap: 10px; }
+      .user-card { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
+      .user-card:first-child { border-top: 0; padding-top: 0; }
+      .user-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; margin-bottom: 12px; }
       .user-email { font-size: 16px; font-weight: 900; overflow-wrap: anywhere; }
       .user-uid { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
-      .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
-      .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; border-top: 1px solid #edf3f6; color: #334454; font-size: 13px; font-weight: 850; }
-      .feature-check input { width: 20px; min-height: 20px; accent-color: var(--primary); }
-      .device-list { display: grid; gap: 8px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
-      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+      .features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
+      .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; color: #334454; font-size: 12px; font-weight: 850; background: #fbfdfe; }
+      .device-list { display: grid; gap: 8px; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+      .device-list > strong { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: #fbfdfe; }
       .device-name { font-weight: 850; }
       .device-meta { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
       .device-status { border-radius: 999px; padding: 5px 10px; background: #edf2f5; color: #334454; font-size: 12px; font-weight: 900; }
-      .device-status.pending { background: #fff7e8; color: #9a5b00; }
-      .device-status.approved { background: #e7f8f4; color: var(--primary-dark); }
+      .device-status.pending { background: #fff7e8; color: var(--warning); }
+      .device-status.approved { background: var(--primary-soft); color: var(--primary-dark); }
       .device-status.rejected { background: #fdeaea; color: var(--danger); }
+      .device-actions { display: flex; gap: 6px; }
+      .device-actions .approve { background: var(--primary-soft); color: var(--primary-dark); }
+      .device-actions .reject { background: #fdeaea; color: var(--danger); }
+      @media (max-width: 980px) {
+        .stack { grid-template-columns: 1fr; }
+        .authorization-card { position: static; }
+        .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
       @media (max-width: 680px) {
-        .topbar, .row, .toggle-row, .user-tools { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
-        .features, .device-row { grid-template-columns: 1fr; }
+        .shell { width: min(100vw - 24px, 1180px); padding: 20px 0; }
+        .topbar, .row, .toggle-row, .user-tools, .device-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+        .features { grid-template-columns: 1fr; }
         .topbar button, .row button, .user-tools button { width: 100%; }
       }
     </style>
@@ -86,7 +105,7 @@
       </div>
 
       <div class="stack">
-        <section class="card">
+        <section class="card authorization-card">
           <h2>Authorization</h2>
           <form class="settings-form" id="settingsForm">
             <div class="row">
@@ -95,10 +114,7 @@
             </div>
             <label>Model name<input id="speechModel" autocomplete="off" placeholder="Model name" /></label>
             <div class="toggle-row">
-              <div>
-                <strong>Enable note features</strong>
-                <p class="muted">Turn this off to temporarily stop note generation for clinic users.</p>
-              </div>
+              <strong>Enable note features</strong>
               <input id="speechEnabled" type="checkbox" />
             </div>
             <button class="primary" type="submit">Save settings</button>
@@ -228,9 +244,9 @@
                 <div class="device-meta">${escapeHtml(device.id)} · Last seen ${escapeHtml(formatDateTime(device.lastSeenAt || device.createdAt))}</div>
               </div>
               <span class="device-status ${escapeHtml(device.status || "pending")}">${escapeHtml(device.status || "pending")}</span>
-              <div>
-                <button class="secondary" type="button" data-device-action="approved" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Approve</button>
-                <button class="secondary" type="button" data-device-action="rejected" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Reject</button>
+              <div class="device-actions">
+                <button class="secondary approve" type="button" data-device-action="approved" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Approve</button>
+                <button class="secondary reject" type="button" data-device-action="rejected" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Reject</button>
               </div>
             </div>
           `).join("");
