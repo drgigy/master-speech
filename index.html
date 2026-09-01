@@ -49,6 +49,7 @@
       .toggle-row input:checked::after, .feature-check input:checked::after { transform: translateX(18px); }
       .stack { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 18px; align-items: start; }
       .authorization-card { position: sticky; top: 18px; }
+      .user-search { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
       .user-tools { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
       .user-list { display: grid; gap: 10px; }
       .user-card { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
@@ -126,6 +127,9 @@
 
         <section class="card">
           <h2>User Features</h2>
+          <div class="user-search">
+            <label>Search users<input id="userSearch" type="search" autocomplete="off" placeholder="Name, email, UID, group, or device" /></label>
+          </div>
           <form class="user-tools" id="manualUserForm">
             <label>User UID<input id="manualUid" autocomplete="off" placeholder="Firebase user UID" /></label>
             <label>Name<input id="manualName" autocomplete="off" placeholder="Doctor name" /></label>
@@ -206,6 +210,7 @@
       let unsubscribeUsers = null;
       let unsubscribeFeatureDocs = [];
       let unsubscribeDevices = null;
+      let userSearchQuery = "";
 
       async function loadSettings() {
         $("#settingsStatus").textContent = "Loading settings...";
@@ -229,9 +234,27 @@
             });
           }
         });
-        const visibleUsers = [...userMap.values()].sort((a, b) => String(a.email || "").localeCompare(String(b.email || "")));
+        const searchText = userSearchQuery.trim().toLowerCase();
+        const visibleUsers = [...userMap.values()]
+          .filter((user) => {
+            if (!searchText) return true;
+            const uid = user.uid || user.id;
+            const features = userFeatures[uid] || {};
+            const devices = userDevices[uid] || [];
+            const haystack = [
+              user.name,
+              user.email,
+              uid,
+              features.sharedPatientGroup,
+              ...devices.flatMap((device) => [device.label, device.email, device.id, device.status])
+            ].filter(Boolean).join(" ").toLowerCase();
+            return haystack.includes(searchText);
+          })
+          .sort((a, b) => String(a.email || "").localeCompare(String(b.email || "")));
         if (!visibleUsers.length) {
-          userList.innerHTML = `<p class="muted">No clinic users found yet. Users appear here after they sign in, or you can add a UID manually.</p>`;
+          userList.innerHTML = searchText
+            ? `<p class="muted">No users match this search.</p>`
+            : `<p class="muted">No clinic users found yet. Users appear here after they sign in, or you can add a UID manually.</p>`;
           return;
         }
         userList.innerHTML = visibleUsers.map((user) => {
@@ -422,6 +445,11 @@
         const deviceButton = event.target.closest("[data-device-action]");
         if (!deviceButton) return;
         await setDeviceStatus(deviceButton.dataset.deviceUser, deviceButton.dataset.deviceId, deviceButton.dataset.deviceAction);
+      });
+
+      $("#userSearch").addEventListener("input", (event) => {
+        userSearchQuery = event.target.value;
+        renderUsers();
       });
 
       $("#toggleKeyBtn").addEventListener("click", () => {
