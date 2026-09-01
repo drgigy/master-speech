@@ -49,9 +49,17 @@
       .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
       .feature-check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; border-top: 1px solid #edf3f6; color: #334454; font-size: 13px; font-weight: 850; }
       .feature-check input { width: 20px; min-height: 20px; accent-color: var(--primary); }
+      .device-list { display: grid; gap: 8px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+      .device-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+      .device-name { font-weight: 850; }
+      .device-meta { color: var(--muted); font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
+      .device-status { border-radius: 999px; padding: 5px 10px; background: #edf2f5; color: #334454; font-size: 12px; font-weight: 900; }
+      .device-status.pending { background: #fff7e8; color: #9a5b00; }
+      .device-status.approved { background: #e7f8f4; color: var(--primary-dark); }
+      .device-status.rejected { background: #fdeaea; color: var(--danger); }
       @media (max-width: 680px) {
         .topbar, .row, .toggle-row, .user-tools { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
-        .features { grid-template-columns: 1fr; }
+        .features, .device-row { grid-template-columns: 1fr; }
         .topbar button, .row button, .user-tools button { width: 100%; }
       }
     </style>
@@ -120,7 +128,7 @@
         signOut
       } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
       const cloudDataModule = await import(`https://www.gstatic.com/firebasejs/12.7.0/firebase-${"fire" + "store"}.js`);
-      const { collection, doc, getDoc, onSnapshot, setDoc } = cloudDataModule;
+      const { collection, collectionGroup, doc, getDoc, onSnapshot, setDoc } = cloudDataModule;
       const getCloudDataStore = cloudDataModule["get" + "Fire" + "store"];
 
       const adminEmails = ["drgigy@gmail.com"];
@@ -171,11 +179,14 @@
       const settingsRef = () => doc(db, ...settingsPath);
       const userDirectoryRef = () => collection(db, "adminUserDirectory");
       const userFeatureRef = (uid) => doc(db, "adminUserFeatures", uid);
+      const userDeviceRef = (uid, deviceId) => doc(db, "adminUserDevices", uid, "devices", deviceId);
       const isAdmin = (user) => user && adminEmails.includes(String(user.email || "").toLowerCase());
       let users = [];
       let userFeatures = {};
+      let userDevices = {};
       let unsubscribeUsers = null;
       let unsubscribeFeatureDocs = [];
+      let unsubscribeDevices = null;
 
       async function loadSettings() {
         $("#settingsStatus").textContent = "Loading settings...";
@@ -199,6 +210,19 @@
           const checks = Object.entries(featureLabels).map(([key, label]) => `
             <label class="feature-check">${label}<input type="checkbox" data-feature-user="${uid}" data-feature-key="${key}" ${features[key] !== false ? "checked" : ""} /></label>
           `).join("");
+          const devices = (userDevices[uid] || []).map((device) => `
+            <div class="device-row">
+              <div>
+                <div class="device-name">${escapeHtml(device.label || "Unknown device")}</div>
+                <div class="device-meta">${escapeHtml(device.id)} · Last seen ${escapeHtml(formatDateTime(device.lastSeenAt || device.createdAt))}</div>
+              </div>
+              <span class="device-status ${escapeHtml(device.status || "pending")}">${escapeHtml(device.status || "pending")}</span>
+              <div>
+                <button class="secondary" type="button" data-device-action="approved" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Approve</button>
+                <button class="secondary" type="button" data-device-action="rejected" data-device-user="${uid}" data-device-id="${escapeHtml(device.id)}">Reject</button>
+              </div>
+            </div>
+          `).join("");
           return `
             <article class="user-card">
               <div class="user-head">
@@ -209,9 +233,20 @@
                 <button class="secondary" type="button" data-save-user="${uid}">Save</button>
               </div>
               <div class="features">${checks}</div>
+              <div class="device-list">
+                <strong>Devices</strong>
+                ${devices || `<p class="muted">No devices registered yet.</p>`}
+              </div>
             </article>
           `;
         }).join("");
+      }
+
+      function formatDateTime(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
       }
 
       function escapeHtml(value) {
@@ -246,6 +281,18 @@
         }, () => {
           $("#userStatus").textContent = "Users could not load. Check admin access rules.";
         });
+        if (unsubscribeDevices) unsubscribeDevices();
+        unsubscribeDevices = onSnapshot(collectionGroup(db, "devices"), (snapshot) => {
+          userDevices = {};
+          snapshot.docs.forEach((item) => {
+            const data = { id: item.id, ...item.data() };
+            if (!data.uid) return;
+            userDevices[data.uid] ||= [];
+            userDevices[data.uid].push(data);
+          });
+          Object.values(userDevices).forEach((devices) => devices.sort((a, b) => String(b.lastSeenAt || b.createdAt || "").localeCompare(String(a.lastSeenAt || a.createdAt || ""))));
+          renderUsers();
+        });
       }
 
       async function saveUserFeatures(uid) {
@@ -259,6 +306,16 @@
           updatedBy: auth.currentUser?.email || ""
         }, { merge: true });
         $("#userStatus").textContent = "User features saved.";
+      }
+
+      async function setDeviceStatus(uid, deviceId, status) {
+        $("#userStatus").textContent = "Saving device...";
+        await setDoc(userDeviceRef(uid, deviceId), {
+          status,
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        $("#userStatus").textContent = `Device ${status}.`;
       }
 
       $("#loginForm").addEventListener("submit", async (event) => {
@@ -308,8 +365,13 @@
 
       document.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-save-user]");
-        if (!button) return;
-        await saveUserFeatures(button.dataset.saveUser);
+        if (button) {
+          await saveUserFeatures(button.dataset.saveUser);
+          return;
+        }
+        const deviceButton = event.target.closest("[data-device-action]");
+        if (!deviceButton) return;
+        await setDeviceStatus(deviceButton.dataset.deviceUser, deviceButton.dataset.deviceId, deviceButton.dataset.deviceAction);
       });
 
       $("#toggleKeyBtn").addEventListener("click", () => {

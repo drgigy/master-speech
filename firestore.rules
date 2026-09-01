@@ -26,6 +26,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /adminUserDevices/{userId}/devices/{deviceId} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      allow create: if isAdmin()
+        || (request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.uid == userId
+          && request.resource.data.status == 'pending'
+          && request.resource.data.keys().hasOnly(['uid', 'email', 'deviceId', 'label', 'status', 'createdAt', 'lastSeenAt']));
+      allow update: if isAdmin()
+        || (request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.uid == userId
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.keys().hasOnly(['uid', 'email', 'deviceId', 'label', 'status', 'createdAt', 'lastSeenAt']));
+      allow delete: if isAdmin();
+    }
+
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
