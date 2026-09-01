@@ -21,6 +21,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /adminDoctorDirectory/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     match /adminUserFeatures/{userId} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       allow write: if isAdmin();

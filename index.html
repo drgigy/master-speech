@@ -215,6 +215,7 @@
       const settingsRef = () => doc(db, ...settingsPath);
       const userDirectoryRef = () => collection(db, "adminUserDirectory");
       const userFeatureRef = (uid) => doc(db, "adminUserFeatures", uid);
+      const doctorDirectoryRef = (uid) => doc(db, "adminDoctorDirectory", uid);
       const userDeviceRef = (uid, deviceId) => doc(db, "adminUserDevices", uid, "devices", deviceId);
       const patientGroupRef = () => collection(db, "adminPatientGroups");
       const patientGroupDocRef = (groupId) => doc(db, "adminPatientGroups", groupId);
@@ -421,13 +422,22 @@
       async function saveUserFeatures(uid) {
         const checks = [...document.querySelectorAll("[data-feature-user]")].filter((input) => input.dataset.featureUser === uid);
         const sharedPatientGroup = [...document.querySelectorAll("[data-user-shared-group]")].find((input) => input.dataset.userSharedGroup === uid)?.value.trim() || "";
+        const name = [...document.querySelectorAll("[data-user-name]")].find((input) => input.dataset.userName === uid)?.value.trim() || "";
+        const email = [...document.querySelectorAll("[data-user-email]")].find((input) => input.dataset.userEmail === uid)?.value.trim() || "";
         const features = {};
         checks.forEach((input) => { features[input.dataset.featureKey] = input.checked; });
         $("#userStatus").textContent = "Saving user features...";
         await setDoc(doc(db, "adminUserDirectory", uid), {
           uid,
-          name: [...document.querySelectorAll("[data-user-name]")].find((input) => input.dataset.userName === uid)?.value.trim() || "",
-          email: [...document.querySelectorAll("[data-user-email]")].find((input) => input.dataset.userEmail === uid)?.value.trim() || "",
+          name,
+          email,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        await setDoc(doctorDirectoryRef(uid), {
+          uid,
+          name,
+          email,
           updatedAt: new Date().toISOString(),
           updatedBy: auth.currentUser?.email || ""
         }, { merge: true });
@@ -465,6 +475,11 @@
         if (existingIdentity && !existingIdentity.startsWith("mobile_")) return existingIdentity;
         const patientKey = patientKeyFrom(data, fallback);
         return patientKey ? `patient_${ownerUid}_${patientKey}` : "";
+      }
+
+      function doctorNameForUid(uid) {
+        const user = users.find((item) => (item.uid || item.id) === uid) || {};
+        return String(user.name || user.email || "").trim();
       }
 
       async function rebuildSharedPatientIndex() {
@@ -513,6 +528,7 @@
           await setDoc(doc(db, "patientGroups", group, "medicalRecords", item.id), {
             ...record,
             ownerUid,
+            doctorName: record.doctorName || doctorNameForUid(ownerUid),
             sharedPatientGroup: group,
             sharedPatientIdentity: recordIdentity,
             indexedAt: new Date().toISOString(),
@@ -585,6 +601,13 @@
           email,
           addedAt: new Date().toISOString(),
           addedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        await setDoc(doctorDirectoryRef(uid), {
+          uid,
+          name,
+          email,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
         }, { merge: true });
         await setDoc(userFeatureRef(uid), defaultFeatures, { merge: true });
         $("#manualUid").value = "";
