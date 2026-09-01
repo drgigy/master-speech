@@ -460,10 +460,11 @@
         return String(data.patientId || data.patientKey || fallback || "").trim().replace(/\//g, "_");
       }
 
-      function patientIdentityFrom(data, fallback = "") {
-        const mobile = String(data.mobile || "").replace(/\D/g, "");
+      function patientIdentityFrom(data, fallback = "", ownerUid = "") {
+        const existingIdentity = String(data.sharedPatientIdentity || data.patientIdentity || "").trim();
+        if (existingIdentity && !existingIdentity.startsWith("mobile_")) return existingIdentity;
         const patientKey = patientKeyFrom(data, fallback);
-        return mobile ? `mobile_${mobile}` : patientKey ? `uhid_${patientKey}` : "";
+        return patientKey ? `patient_${ownerUid}_${patientKey}` : "";
       }
 
       async function rebuildSharedPatientIndex() {
@@ -482,10 +483,11 @@
           if (!group) continue;
           const patient = item.data();
           const patientKey = patientKeyFrom(patient, item.id);
-          const patientIdentity = patientIdentityFrom(patient, item.id);
+          const patientIdentity = patientIdentityFrom(patient, item.id, ownerUid);
           if (!patientIdentity) continue;
           await setDoc(doc(db, "patientGroups", group, "patients", patientIdentity), {
             patientIdentity,
+            sharedPatientIdentity: patientIdentity,
             patientId: patientKey,
             name: patient.name || "",
             age: patient.age || "",
@@ -507,10 +509,12 @@
           const group = groupsByUser.get(ownerUid);
           if (!group) continue;
           const record = item.data();
+          const recordIdentity = patientIdentityFrom(record, item.id, ownerUid);
           await setDoc(doc(db, "patientGroups", group, "medicalRecords", item.id), {
             ...record,
             ownerUid,
             sharedPatientGroup: group,
+            sharedPatientIdentity: recordIdentity,
             indexedAt: new Date().toISOString(),
             indexedBy: auth.currentUser?.email || ""
           }, { merge: true });
