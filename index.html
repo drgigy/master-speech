@@ -51,6 +51,9 @@
       .authorization-card { position: sticky; top: 18px; }
       .user-search { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
       .user-maintenance { display: flex; justify-content: flex-end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
+      .group-tools { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
+      .group-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+      .group-pill { border: 1px solid var(--line); border-radius: 999px; padding: 7px 11px; background: #fbfdfe; color: #334454; font-size: 12px; font-weight: 850; }
       .user-tools { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) minmax(220px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
       .user-list { display: grid; gap: 10px; }
       .user-card { border-top: 1px solid var(--line-soft); padding: 16px 0 4px; }
@@ -81,9 +84,9 @@
       }
       @media (max-width: 680px) {
         .shell { width: min(100vw - 24px, 1180px); padding: 20px 0; }
-        .topbar, .row, .toggle-row, .user-tools, .device-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
+        .topbar, .row, .toggle-row, .group-tools, .user-tools, .device-row { grid-template-columns: 1fr; flex-direction: column; align-items: stretch; }
         .features { grid-template-columns: 1fr; }
-        .topbar button, .row button, .user-tools button, .user-maintenance button { width: 100%; }
+        .topbar button, .row button, .group-tools button, .user-tools button, .user-maintenance button { width: 100%; }
       }
     </style>
   </head>
@@ -128,6 +131,12 @@
 
         <section class="card">
           <h2>User Features</h2>
+          <form class="group-tools" id="groupForm">
+            <label>Group ID<input id="groupId" autocomplete="off" placeholder="neuroclinic-main" /></label>
+            <label>Group name<input id="groupName" autocomplete="off" placeholder="Neuroclinic doctors" /></label>
+            <button class="primary" type="submit">Create group</button>
+          </form>
+          <div class="group-list" id="groupList"></div>
           <div class="user-search">
             <label>Search users<input id="userSearch" type="search" autocomplete="off" placeholder="Name, email, UID, group, or device" /></label>
           </div>
@@ -207,13 +216,17 @@
       const userDirectoryRef = () => collection(db, "adminUserDirectory");
       const userFeatureRef = (uid) => doc(db, "adminUserFeatures", uid);
       const userDeviceRef = (uid, deviceId) => doc(db, "adminUserDevices", uid, "devices", deviceId);
+      const patientGroupRef = () => collection(db, "adminPatientGroups");
+      const patientGroupDocRef = (groupId) => doc(db, "adminPatientGroups", groupId);
       const isAdmin = (user) => user && adminEmails.includes(String(user.email || "").toLowerCase());
       let users = [];
       let userFeatures = {};
       let userDevices = {};
+      let patientGroups = [];
       let unsubscribeUsers = null;
       let unsubscribeFeatureDocs = [];
       let unsubscribeDevices = null;
+      let unsubscribeGroups = null;
       let userSearchQuery = "";
 
       async function loadSettings() {
@@ -264,6 +277,8 @@
         userList.innerHTML = visibleUsers.map((user) => {
           const uid = user.uid || user.id;
           const features = { ...defaultFeatures, ...(userFeatures[uid] || {}) };
+          const selectedGroup = String(features.sharedPatientGroup || "").trim();
+          const groupOptions = groupSelectOptions(selectedGroup);
           const checks = Object.entries(featureLabels).map(([key, label]) => `
             <label class="feature-check">${label}<input type="checkbox" data-feature-user="${uid}" data-feature-key="${key}" ${features[key] !== false ? "checked" : ""} /></label>
           `).join("");
@@ -293,7 +308,7 @@
               <div class="user-edit-grid">
                 <label>Name<input data-user-name="${uid}" value="${escapeHtml(user.name || "")}" placeholder="Doctor name" /></label>
                 <label>Email address<input data-user-email="${uid}" type="email" value="${escapeHtml(user.email || "")}" placeholder="doctor@example.com" /></label>
-                <label>Shared patient group<input data-user-shared-group="${uid}" value="${escapeHtml(features.sharedPatientGroup || "")}" placeholder="Example: neuroclinic-main" /></label>
+                <label>Patient group<select data-user-shared-group="${uid}">${groupOptions}</select></label>
               </div>
               <div class="features">${checks}</div>
               <div class="device-list">
@@ -312,6 +327,39 @@
         return date.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
       }
 
+      function allPatientGroups() {
+        const formalGroups = patientGroups.map((group) => ({
+          id: String(group.id || "").trim(),
+          name: String(group.name || group.id || "").trim()
+        })).filter((group) => group.id);
+        const existingGroups = Object.values(userFeatures)
+          .map((features) => String(features.sharedPatientGroup || "").trim())
+          .filter(Boolean)
+          .map((groupId) => ({ id: groupId, name: groupId }));
+        const byId = new Map();
+        [...formalGroups, ...existingGroups].forEach((group) => {
+          if (!byId.has(group.id)) byId.set(group.id, group);
+        });
+        return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+      }
+
+      function groupSelectOptions(selectedGroup = "") {
+        const options = [`<option value="">Private patient database</option>`];
+        allPatientGroups().forEach((group) => {
+          options.push(`<option value="${escapeHtml(group.id)}" ${group.id === selectedGroup ? "selected" : ""}>${escapeHtml(group.name)} (${escapeHtml(group.id)})</option>`);
+        });
+        return options.join("");
+      }
+
+      function renderPatientGroups() {
+        const box = $("#groupList");
+        if (!box) return;
+        const groups = allPatientGroups();
+        box.innerHTML = groups.length
+          ? groups.map((group) => `<span class="group-pill">${escapeHtml(group.name)} · ${escapeHtml(group.id)}</span>`).join("")
+          : `<span class="muted">No shared groups created. Users are private unless assigned to a group.</span>`;
+      }
+
       function escapeHtml(value) {
         return String(value || "").replace(/[&<>"']/g, (char) => ({
           "&": "&amp;",
@@ -327,6 +375,14 @@
         unsubscribeFeatureDocs.forEach((unsubscribe) => unsubscribe());
         unsubscribeFeatureDocs = [];
         $("#userStatus").textContent = "Loading users...";
+        if (unsubscribeGroups) unsubscribeGroups();
+        unsubscribeGroups = onSnapshot(patientGroupRef(), (snapshot) => {
+          patientGroups = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+          renderPatientGroups();
+          renderUsers();
+        }, () => {
+          $("#userStatus").textContent = "Patient groups could not load. Check admin access rules.";
+        });
         unsubscribeUsers = onSnapshot(userDirectoryRef(), (snapshot) => {
           unsubscribeFeatureDocs.forEach((unsubscribe) => unsubscribe());
           unsubscribeFeatureDocs = [];
@@ -335,11 +391,13 @@
             const uid = user.uid || user.id;
             const unsubscribe = onSnapshot(userFeatureRef(uid), (featureSnapshot) => {
               userFeatures[uid] = featureSnapshot.exists() ? featureSnapshot.data() : {};
+              renderPatientGroups();
               renderUsers();
             });
             unsubscribeFeatureDocs.push(unsubscribe);
           });
           renderUsers();
+          renderPatientGroups();
           $("#userStatus").textContent = users.length ? "Users loaded." : "No users loaded.";
         }, () => {
           $("#userStatus").textContent = "Users could not load. Check admin access rules.";
@@ -483,6 +541,28 @@
           updatedBy: auth.currentUser?.email || ""
         }, { merge: true });
         $("#settingsStatus").textContent = "Settings saved.";
+      });
+
+      $("#groupForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const rawId = $("#groupId").value.trim();
+        const name = $("#groupName").value.trim();
+        const groupId = rawId.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+        if (!groupId || !name) {
+          $("#userStatus").textContent = "Enter group ID and group name.";
+          return;
+        }
+        $("#userStatus").textContent = "Creating patient group...";
+        await setDoc(patientGroupDocRef(groupId), {
+          name,
+          groupId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.email || ""
+        }, { merge: true });
+        $("#groupId").value = "";
+        $("#groupName").value = "";
+        $("#userStatus").textContent = "Patient group saved.";
       });
 
       $("#manualUserForm").addEventListener("submit", async (event) => {

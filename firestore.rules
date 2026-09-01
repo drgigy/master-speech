@@ -26,6 +26,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /adminPatientGroups/{groupId} {
+      allow read, write: if isAdmin();
+    }
+
     match /adminUserDevices/{userId}/devices/{deviceId} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       allow create: if isAdmin()
