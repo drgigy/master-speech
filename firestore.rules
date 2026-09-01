@@ -43,6 +43,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /{path=**}/devices/{deviceId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+    }
+
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
