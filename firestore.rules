@@ -7,11 +7,11 @@ service cloud.firestore {
         && request.auth.token.email in ['drgigy@gmail.com'];
     }
 
-    match /admin/settings/{settingId} {
+    match /adminSettings/{settingId} {
       allow read, write: if isAdmin();
     }
 
-    match /admin/userDirectory/{userId} {
+    match /adminUserDirectory/{userId} {
       allow read: if isAdmin();
       allow create, update: if isAdmin()
         || (request.auth != null
@@ -20,7 +20,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /admin/userFeatures/{userId} {
+    match /adminUserFeatures/{userId} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       allow write: if isAdmin();
     }

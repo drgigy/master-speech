@@ -124,7 +124,7 @@
       const getCloudDataStore = cloudDataModule["get" + "Fire" + "store"];
 
       const adminEmails = ["drgigy@gmail.com"];
-      const settingsPath = ["admin", "settings", "speech"];
+      const settingsPath = ["adminSettings", "speech"];
       const featureLabels = {
         staff: "Staff",
         finance: "Finance",
@@ -161,8 +161,8 @@
       const db = getCloudDataStore(app);
       const $ = (selector) => document.querySelector(selector);
       const settingsRef = () => doc(db, ...settingsPath);
-      const userDirectoryRef = () => collection(db, "admin", "userDirectory");
-      const userFeatureRef = (uid) => doc(db, "admin", "userFeatures", uid);
+      const userDirectoryRef = () => collection(db, "adminUserDirectory");
+      const userFeatureRef = (uid) => doc(db, "adminUserFeatures", uid);
       const isAdmin = (user) => user && adminEmails.includes(String(user.email || "").toLowerCase());
       let users = [];
       let userFeatures = {};
@@ -286,7 +286,7 @@
           return;
         }
         $("#userStatus").textContent = "Adding user...";
-        await setDoc(doc(db, "admin", "userDirectory", uid), {
+        await setDoc(doc(db, "adminUserDirectory", uid), {
           uid,
           email,
           addedAt: new Date().toISOString(),
